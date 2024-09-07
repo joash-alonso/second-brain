@@ -1,38 +1,40 @@
 from abc import ABC, abstractmethod
-from pathlib import Path
 from llama_index.core import Document, SimpleDirectoryReader
 from typing import List
 
 
 class BaseExtractor(ABC):
     @abstractmethod
-    def extract(self):
+    def extract(self, reader: SimpleDirectoryReader):
+        pass
+
+    @abstractmethod
+    def post_process(self):
         pass
 
 
-class SimplePDFExtractor(BaseExtractor):
-    def __init__(
-        self, file_paths: List[Path | str], num_workers: int | None = None
-    ) -> None:
-        self.file_paths = file_paths
+class PDFExtractor(BaseExtractor):
+    def __init__(self, num_workers: int | None = None) -> None:
         self.num_workers = num_workers
-        self.__required_exts = ["pdf"]
 
-    @property
-    def pdf_loader(self):
-        if not isinstance(self.file_paths, list):
-            raise TypeError("File paths should be a list")
+    def extract(self, reader: SimpleDirectoryReader, **kwargs) -> List[Document]:
+        if not isinstance(reader, SimpleDirectoryReader):
+            raise NotImplementedError(
+                "Only accepting SimpleDirectoryReader from llama-index"
+            )
 
-        return SimpleDirectoryReader(
-            input_files=self.file_paths, required_exts=self.__required_exts
-        )
+        if not hasattr(reader, "load_data"):
+            raise AttributeError("Llama-index API has changed")
 
-    def extract(self) -> List[Document]:
-        return self.pdf_loader.load_data(
-            self.file_paths, num_workers=self.num_workers or 4
-        )
+        return reader.load_data(num_workers=self.num_workers or 4)
+
+    def post_process(self):
+        return None
 
 
 if __name__ == "__main__":
-    extractor = SimplePDFExtractor("sample.pdf")
-    print(extractor.extract())
+    directory_reader = SimpleDirectoryReader(
+        input_files=["sample.pdf"], required_exts=[".pdf"]
+    )
+    extractor = PDFExtractor()
+    print(extractor.extract(reader=directory_reader))
